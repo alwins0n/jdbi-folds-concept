@@ -4,9 +4,8 @@ import at.alwins0n.jdbi.folds.domain.DomainObject;
 import at.alwins0n.jdbi.folds.domain.SubObject;
 import io.vavr.collection.List;
 import lombok.AllArgsConstructor;
+import lombok.val;
 import org.jdbi.v3.core.Jdbi;
-import org.jdbi.v3.core.generic.GenericType;
-import org.jdbi.v3.core.mapper.reflect.ConstructorMapper;
 
 @AllArgsConstructor
 public class DomainObjectRepository {
@@ -15,24 +14,15 @@ public class DomainObjectRepository {
 
     static DomainObject toDomain(DomainObjectRow row, List<SubObjectRow> subs) {
         return DomainObject.fromPersistence(row.getId(), row.getName(),
-                subs.map(s -> new SubObject(s.getType())));
+                subs.map(SubObjectRow::getType).map(SubObject::new));
     }
 
     public DomainObject findById(int id) {
-        final DomainObjectRow domainObjectRow = jdbi.withHandle(h -> h
-                .createQuery("select * from domain_objects where id = :id")
-                .bind("id", id)
-                .map(ConstructorMapper.of(DomainObjectRow.class))
-                .findOnly());
+        val row = JdbiHelper.getRowById(jdbi, id, DomainObjectRow.class, "domain_objects");
+        val subObjectRows = JdbiHelper.getManyRowsById(jdbi, id, SubObjectRow.class,
+                "sub_objects", "domain_object_id");
 
-        final List<SubObjectRow> subObjectRows = jdbi.withHandle(h -> h
-                .registerRowMapper(ConstructorMapper.factory(SubObjectRow.class))
-                .createQuery("select * from sub_objects where domain_object_id = :id")
-                .bind("id", id)
-                .collectInto(new GenericType<List<SubObjectRow>>() {
-                }));
-
-        return toDomain(domainObjectRow, subObjectRows);
+        return toDomain(row, subObjectRows);
     }
 
 }
